@@ -1,0 +1,183 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SensorPin A0          // Connect pH meter's analog output to A0 pin on Arduino
+#define SCREEN_WIDTH 128      // OLED display width in pixels
+#define SCREEN_HEIGHT 64      // OLED display height in pixels
+#define OLED_RESET    -1      // Reset pin (or -1 if sharing reset pin)
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+unsigned long int avgValue;  // Store the average value of the sensor reading
+int buf[10], temp;
+
+void setup() {
+  pinMode(13, OUTPUT);       // LED for indication
+  Serial.begin(9600);        // Start serial communication for debugging
+  Serial.println("Ready");
+
+  // Initialize OLED display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;) ;  // Don't proceed, loop forever
+  }
+
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setTextSize(2);
+  display.setCursor(0, 5);
+  display.print("PH Sensor");
+  display.display();
+  delay(3000);
+}
+
+void loop() {
+  // Read 10 samples from the sensor
+  for (int i = 0; i < 10; i++) {
+    buf[i] = analogRead(SensorPin);
+    delay(10);
+  }
+
+  // Sort the buffer array to remove extremes
+  for (int i = 0; i < 9; i++) {
+    for (int j = i + 1; j < 10; j++) {
+      if (buf[i] > buf[j]) {
+        temp = buf[i];
+        buf[i] = buf[j];
+        buf[j] = temp;
+      }
+    }
+  }
+
+  // Calculate the average of the middle 6 values
+  avgValue = 0;
+  for (int i = 2; i < 8; i++) {
+    avgValue += buf[i];
+  }
+
+  // Convert analog value to pH
+  float phValue = (float)avgValue * 5.0 / 1024 / 6;  // Convert to millivolt
+  phValue = 3.5 * phValue;                          // Convert to pH value
+
+  // Display pH value on Serial Monitor
+  Serial.print("pH: ");
+  Serial.println(phValue, 2);
+
+  // Display on OLED
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(20, 0);
+  display.println("Ph Value");
+  display.setTextSize(2);
+  display.setCursor(30, 30);
+  display.print(phValue);
+
+  // Determine soil type and display appropriate information
+  if (phValue == 7.00) {
+    display.setTextSize(2);
+    display.setCursor(30, 50);
+    display.println("Neutral");
+    display.display();
+    delay(4000);
+  } else if (phValue > 7) {
+    display.setTextSize(2);
+    display.setCursor(30, 50);
+    display.println("Alkaline");
+    display.display();
+    delay(4000);
+
+    // Display soil and plant information based on pH range
+    if (phValue > 7 && phValue < 8.1) {
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Soil Type:\nSandy soil");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+      
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Plants:\nPlum, Orange, Garlic, Walnut");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+      
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Lack of:\nIron, Manganese, Phosphorus");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+    }
+
+    if (phValue > 8 && phValue < 10.1) {
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Soil Type:\nClay soil");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+      
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Lack of:\nIron, Manganese, Phosphorus");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+    }
+
+  } else {  // pH is less than 7 (Acidic)
+    display.setTextSize(2);
+    display.setCursor(30, 50);
+    display.println("Acidic");
+    display.display();
+    delay(4000);
+    display.clearDisplay();
+
+    // Display soil and plant information based on pH range
+    if (phValue < 7.1 && phValue > 5.9) {
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Soil Type:\nLoamy soil");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+      
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Plants:\nWheat, Rice, Cherry, Cabbage");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+      
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Ideal pH");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+    }
+
+    if (phValue > 4.9 && phValue < 6) {
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Plants:\nApple, Ragi, Garlic, Blueberry");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+      
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.println("Lack of:\nNitrogen, Phosphorus, Potassium");
+      display.display();
+      delay(4000);
+      display.clearDisplay();
+    }
+  }
+
+  display.display(); // Update OLED display
+  digitalWrite(13, HIGH);  // Turn on LED
+  delay(800);
+  digitalWrite(13, LOW);   // Turn off LED
+}
